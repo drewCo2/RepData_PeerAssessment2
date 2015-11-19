@@ -24,23 +24,79 @@ if (!file.exists(dataFile))
 {
   download.file(dataUrl, dataFile)
 }
-stormData<-tbl_df(read.csv(bzfile(dataFile)))
+stormDataRaw<-tbl_df(read.csv(bzfile(dataFile)))
 
-stormData<-select(stormData, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
-
-#Fix the EVTYPE data for typos!
+stormData<-select(stormDataRaw, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
 
 # The max number of items / observations that we want to report in each plot, table, etc.
 MAX_ITEMS<-5
 
 ```
 
-# Cut out everything that we don't need.
+The damage estimates are a combination of a numeric value and a multiplier.  The multipliers are K,M,B for thousands, millions, and billions respectively.  We will want to combine the *DMG and *DMGEXP columns into a single value to make further computations easier.  However, there are many entries that are outside of the K,M,B specifiers.
+
+```{r echo=TRUE, cache=TRUE}
+length(levels(stormData$PROPDMGEXP))
+length(levels(stormData$CROPDMGEXP))
+```
+
+Looking at them we can see that some are simple casing issues, i.e. k vs. K.  We will correct these first.  Any item that is empty ("") will be converted to NA at this point as well.
+
+```{r echo=TRUE, cache=TRUE}
+
+stormData$PROPDMGEXP[stormData$PROPDMGEXP == 'k'] <- 'K'
+stormData$PROPDMGEXP[stormData$PROPDMGEXP == 'm'] <- 'M'
+stormData$PROPDMGEXP[stormData$PROPDMGEXP == 'b'] <- 'B'
+stormData$PROPDMGEXP[stormData$PROPDMGEXP == ''] <- NA
+
+stormData$CROPDMGEXP[stormData$CROPDMGEXP == 'k'] <- 'K'
+stormData$CROPDMGEXP[stormData$CROPDMGEXP == 'm'] <- 'M'
+stormData$CROPDMGEXP[stormData$CROPDMGEXP == 'b'] <- 'B'
+stormData$CROPDMGEXP[stormData$CROPDMGEXP == ''] <- NA
+
+```
+
+In order to determine what to do about the remainder of the observations, we will see what portion of the information that they make up.
+```{r echo=TRUE, cache=TRUE}
+valid<-c('K','M','B', NA)
+validProp = sum(!stormData$PROPDMGEXP %in% valid) / nrow(stormData)
+validCrop = sum(!stormData$CROPDMGEXP %in% valid) / nrow(stormData)
+```
+
+The proportion of invalid DMGEXP entries for property and crop damage are **`r validProp`** and **`r validCrop`** respectively.  These numbers are vanishingly small, so we will remove them from the factors by re-encoding them as NA (which will be interpreted as zero later)
+
+```{r echo=TRUE, cache=TRUE}
+
+# clear invalid entries and re-level the factors.
+stormData$PROPDMGEXP[!stormData$PROPDMGEXP %in% valid] <- NA
+stormData$PROPDMGEXP<-factor(stormData$PROPDMGEXP)
+
+stormData$CROPDMGEXP[!stormData$CROPDMGEXP %in% valid] <- NA
+stormData$CROPDMGEXP<-factor(stormData$CROPDMGEXP)
+
+# To be sure...
+levels(stormData$PROPDMGEXP)
+levels(stormData$CROPDMGEXP)
+
+```
+
+
+```{r echo=TRUE, cache=TRUE}
+```
+
+Some of the EVTYPE entries are typos so we will clean up that factor.  Looking at a sorted list of the factor
+
+```{r echo=TRUE, cache=TRUE}
+
+
+
+```
+
 ##**Part 1:** Determining Events that are most harmful to human health.
 The first step that we will take is to locate the observations in the storm data that include at least one injury, or at least one fatality.  After filtering, we will subselect the injury, fatality and event type data
 since this is what we are most interested in for this particular part of the analysis.
 
-```{r echo=TRUE}
+```{r echo=TRUE, cache=TRUE}
 
 withHarm<-filter(stormData, FATALITIES > 0 | INJURIES > 0)
 #withHarm<-select(withHarm, FATALITIES, INJURIES, EVTYPE)
@@ -50,7 +106,7 @@ head(withHarm, MAX_ITEMS)
 
 To determine the event types that are most harmful, we will first group and summarise them, and then sort them, first by number of fatalities (because being dead is worse than being injured), and then by number of injuries.
 
-```{r echo=TRUE}
+```{r echo=TRUE, cache=TRUE}
 
 harmSorted<-group_by(withHarm, EVTYPE)
 
@@ -62,7 +118,7 @@ harmSummary<-summarise(harmSorted, FATALITIES=sum(FATALITIES), INJURIES=sum(INJU
 
 If we take a quick look at the data (below) we can see that tornadoes far outweight the other top ten events in terms of both fatalities and injuries.  
 
-```{r echo=TRUE}
+```{r echo=TRUE, cache=TRUE}
 
 # The max number of items that we are going to plot.
 
@@ -72,7 +128,7 @@ head(harmSummary, MAX_ITEMS)
 
 Before we plot the information to communicate our results, we transform the data into a log scale to better fit it in a plot.  Since we are dealing with non-zero numbers in the top `r MAX_ITEMS` events, we don't need to worry about taking the log of zero.
 
-```{r echo=TRUE}
+```{r echo=TRUE, cache=TRUE}
 
 harmSummary<-mutate(harmSummary, LogFatalities=log(FATALITIES), LogInjuries=log(INJURIES) )
 
@@ -85,7 +141,8 @@ Because we have both fatality and injury information per event, we will create a
   
 We will use the transformed data later when we are plotting and reporting our results.
   
-```{r cache=TRUE}
+```{r cache=TRUE, cache=TRUE}
+
 fPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=FATALITIES, EVTYPE) %>% 
        mutate(HarmType = 'Fatality')
 iPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=INJURIES, EVTYPE) %>% 
@@ -115,7 +172,7 @@ We must do some additional data processing in order to determine the events with
 ###(required)
 ... The results of the analysis go here.  You can add any others that you wish...
 
-```{r echo=TRUE, fig.width=8, fig.height=4, fig.cap="The Top 5 most harmful weather events, by type."}
+```{r echo=TRUE, cache=TRUE, fig.width=8, fig.height=4, fig.cap="The Top 5 most harmful weather events, by type."}
 
 
 p<- ggplot(harmPlot, aes(EVTYPE, Count, fill=HarmType)) +
