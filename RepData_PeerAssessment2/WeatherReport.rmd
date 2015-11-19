@@ -1,0 +1,116 @@
+
+#Title
+... title goes here ...
+
+#Synopsis
+... enter - no more than ten sentences ...
+
+
+# Data Processing
+###(required)
+This is where we download the data files, load them into memory, and load any libraries that we may need to 
+perform our analysis.  We will also process the data at this time to get it into a suitable format for further analysis and reporting.
+
+```{r echo=TRUE, cache=TRUE}
+
+library(dplyr)
+
+dataUrl<- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+dataFile<- 'StormData.bz2'
+
+
+if (!exists('stormData'))
+{
+  if (!file.exists(dataFile))
+  {
+    download.file(dataUrl, dataFile)
+  }
+  stormData<-tbl_df(read.csv(bzfile(dataFile)))
+}
+
+```
+
+#Fix the EVTYPE data for typos!
+
+##Determining Events that are most harmful to human health.
+The first step that we will take is to locate the observations in the storm data that include at least one injury, or at least one fatality.  After filtering, we will subselect the injury, fatality and event type data
+since this is what we are most interested in for this particular part of the analysis.
+
+```{r echo=TRUE}
+
+withHarm<-filter(stormData, FATALITIES > 0 | INJURIES > 0)
+withHarm<-select(withHarm, FATALITIES, INJURIES, EVTYPE)
+head(withHarm, 5)
+
+```
+
+To determine the event types that are most harmful, we will first group and summarise them, and then sort them, first by number of fatalities (because being dead is worse than being injured), and then by number of injuries.
+
+```{r echo=TRUE}
+
+harmSorted<-group_by(withHarm, EVTYPE)
+
+harmSummary<-summarise(harmSorted, FATALITIES=sum(FATALITIES), INJURIES=sum(INJURIES)) %>%
+             arrange(desc(FATALITIES), desc(INJURIES))
+
+# The max number of items / observations that we want to report in each plot, table, etc.
+MAX_ITEMS<-5
+                     
+```
+
+If we take a quick look at the data (below) we can see that tornadoes far outweight the other top ten events in terms of both fatalities and injuries.  
+
+```{r echo=TRUE}
+
+# The max number of items that we are going to plot.
+
+head(harmSummary, MAX_ITEMS)
+
+```
+
+Before we plot the information to communicate our results, we transform the data into a log scale to better fit it in a plot.  Since we are dealing with non-zero numbers in the top `r MAX_ITEMS` events, we don't need to worry about taking the log of zero.
+
+```{r echo=TRUE}
+
+harmSummary<-mutate(harmSummary, LogFatalities=log(FATALITIES), LogInjuries=log(INJURIES) )
+
+# Print it again so we can see our new data.
+head(harmSummary, MAX_ITEMS)
+
+```
+
+Because we have both fatality and injury information per event, we will create a transformed set of data that will be used to create a bar plot that can communicate this effectively.  We will split out each type of 'harm' and merge it back into a new data set that will be used strictly for plotting.
+
+```{r cache=TRUE}
+fPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=LogFatalities, EVTYPE) %>% 
+       mutate(HarmType = 'Fatality')
+iPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=LogInjuries, EVTYPE) %>% 
+       mutate(HarmType = 'Injury')
+
+# Merge the rows + change the harm type to a factor + cleanup intermediates.
+harmPlot<-rbind(fPlot, iPlot)
+rm(list=c("fPlot","iPlot"))
+
+harmPlot$HarmType<-as.factor(harmPlot$HarmType)
+
+```
+
+
+#Results
+###(required)
+... The results of the analysis go here.  You can add any others that you wish...
+
+```{r echo=TRUE, fig.cap="The Top 5 most harmful weather events, by type."}
+
+ggplot(harmPlot, aes(EVTYPE, Count, fill=HarmType)) +
+       geom_bar(stat="identity", position="dodge") +
+       xlab("Event Type")
+
+```
+
+###Checklist
+1. At least 1 figure containing a plot.
+2. No more than 3 figures, though each fig. may contain more than one plot.
+3. Include code for everything.  All code chunks should be set w/ echo=TRUE
+4. Publish to RPubs.
+
