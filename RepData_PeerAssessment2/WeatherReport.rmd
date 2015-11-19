@@ -14,10 +14,11 @@ perform our analysis.  We will also process the data at this time to get it into
 ```{r echo=TRUE, cache=TRUE}
 
 library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
 
 dataUrl<- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
 dataFile<- 'StormData.bz2'
-
 
 if (!exists('stormData'))
 {
@@ -27,6 +28,10 @@ if (!exists('stormData'))
   }
   stormData<-tbl_df(read.csv(bzfile(dataFile)))
 }
+stormData<-stormData
+
+# The max number of items / observations that we want to report in each plot, table, etc.
+MAX_ITEMS<-5
 
 ```
 
@@ -40,7 +45,7 @@ since this is what we are most interested in for this particular part of the ana
 
 withHarm<-filter(stormData, FATALITIES > 0 | INJURIES > 0)
 withHarm<-select(withHarm, FATALITIES, INJURIES, EVTYPE)
-head(withHarm, 5)
+head(withHarm, MAX_ITEMS)
 
 ```
 
@@ -53,8 +58,6 @@ harmSorted<-group_by(withHarm, EVTYPE)
 harmSummary<-summarise(harmSorted, FATALITIES=sum(FATALITIES), INJURIES=sum(INJURIES)) %>%
              arrange(desc(FATALITIES), desc(INJURIES))
 
-# The max number of items / observations that we want to report in each plot, table, etc.
-MAX_ITEMS<-5
                      
 ```
 
@@ -91,7 +94,10 @@ iPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=LogInjuries, EVTYPE) %>%
 harmPlot<-rbind(fPlot, iPlot)
 rm(list=c("fPlot","iPlot"))
 
+# Transform the data a bit so that we can plot in the correct order, etc.
 harmPlot$HarmType<-as.factor(harmPlot$HarmType)
+harmPlot$EVTYPE = factor(harmPlot$EVTYPE, unique(harmPlot$EVTYPE))  # Reorder Levels
+
 
 ```
 
@@ -102,8 +108,10 @@ harmPlot$HarmType<-as.factor(harmPlot$HarmType)
 
 ```{r echo=TRUE, fig.cap="The Top 5 most harmful weather events, by type."}
 
+
 ggplot(harmPlot, aes(EVTYPE, Count, fill=HarmType)) +
        geom_bar(stat="identity", position="dodge") +
+       scale_y_log10() +
        xlab("Event Type")
 
 ```
