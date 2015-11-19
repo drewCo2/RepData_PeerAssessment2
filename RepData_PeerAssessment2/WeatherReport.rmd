@@ -80,6 +80,26 @@ levels(stormData$CROPDMGEXP)
 
 ```
 
+With our newly corrected factors, we can now compute the actual dollar amount of damage.  We will do this and add new columns to the data set to describe property, crop and total damages.
+
+```{r echo=TRUE, cache=TRUE}
+
+
+# This looks weird, but is actually way faster than sapply and an if/else set of statements....
+getMultipliers<-function(dmgExp)
+{
+  res<-rep(0, nrow(stormData))
+  res[dmgExp == 'K'] <- 1e3
+  res[dmgExp == 'M'] <- 1e6
+  res[dmgExp == 'B'] <- 1e9
+} 
+
+stormData<-mutate(stormData, PropDamage= PROPDMG * getMultipliers(PROPDMGEXP))
+stormData<-mutate(stormData, CropDamage= PROPDMG * getMultipliers(CROPDMGEXP))
+stormData<-mutate(stormData, TotalDamage = PropDamage + CropDamage)
+
+```
+
 
 ```{r echo=TRUE, cache=TRUE}
 ```
