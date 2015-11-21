@@ -1,21 +1,26 @@
 
-#Title
-... title goes here ...
+<!-- Establish parameters for downstream processing. -->
+```{r echo=FALSE, cache=TRUE}
+# The max number of items / observations that we want to report in each plot, table, etc.
+MAX_ITEMS<-10
+options(digits=3, scipen=1000)
+```
 
-#Synopsis
-... enter - no more than ten sentences ...
+#Dangerous Weather Events, 1950-2011
+
+##Synopsis
+The purpose of this report is to analyze the types of weather events that are the most injurious to human health, as well as those that cause the most economic damage.  To investigate these weather events, we used the NOAA storm database which keeps track of weather events between the years 1950 and 2011.  By processing and analyzing the information, we are able to discover which types of weather events that cause the most fatalities and injuries, as well as the type of weather events that cause the most economic damage.
 
 
-# Data Processing
-###(required)
+##Data Processing
 This is where we download the data files, load them into memory, and load any libraries that we may need to 
 perform our analysis.  We will also process the data at this time to get it into a suitable format for further analysis and reporting.  In particular, we will remove all columns that don't contain data we aren't interested in for this report.
 
+###Loading the data
 ```{r echo=TRUE, cache=TRUE}
 
 library(dplyr)
 library(ggplot2)
-library(RColorBrewer)
 
 dataUrl<- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
 dataFile<- 'StormData.bz2'
@@ -26,13 +31,26 @@ if (!file.exists(dataFile))
 }
 stormDataRaw<-tbl_df(read.csv(bzfile(dataFile)))
 
-stormData<-select(stormDataRaw, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
-
-# The max number of items / observations that we want to report in each plot, table, etc.
-MAX_ITEMS<-10
-
 ```
 
+###Establishing date range
+We analyze the dates of the events so that we can establish a range for plots, etc.
+```{r echo=TRUE, cache=TRUE}
+minDate<-min(strptime(stormDataRaw$BGN_DATE, format="%m/%d/%Y"))$year + 1900
+maxDate<-max(strptime(stormDataRaw$BGN_DATE, format="%m/%d/%Y"))$year + 1900
+
+```
+The first date is `r minDate` and the last is `r maxDate`.
+
+
+Next we get a subset of the data that includes all of the information that we are interested in in this report.
+```{r echo=TRUE, cache=TRUE}
+stormData<-select(stormDataRaw, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
+rm(stormDataRaw)
+```
+
+  
+###Cleaning up damage estimate data
 The damage estimates are a combination of a numeric value and a multiplier.  The multipliers are K,M,B for thousands, millions, and billions respectively.  We will want to combine the *DMG and *DMGEXP columns into a single value to make further computations easier.  However, there are many entries that are outside of the K,M,B specifiers.
 
 ```{r echo=TRUE, cache=TRUE}
@@ -105,35 +123,40 @@ stormData<-mutate(stormData, TotalDamage = PropDamage + CropDamage)
 ```{r echo=TRUE, cache=TRUE}
 ```
 
+###Cleaning up event type (EVTYPE) factor information
 The EVTYPE factor in the data also needs to be cleaned up.  This factor has `r length(levels(stormData$EVTYPE))` levels which seems high.  Looking at the factor we can see that there are typos, extra whitespace, and abbreviations that end up creating more levels than are needed.
   
 However, since we are only concerned with reporting the events *most* damage or harm, we will only focus on fixing those items.  In order to reduce the number of levels I have used the following approach:
   
-1. Remove all rows from the data set that don't include any damage, fatalities or injuries.  This will reduce the associated number of levels from the EVTYPE factor.
+####1.
+Remove all rows from the data set that don't include any damage, fatalities or injuries.  This will reduce the associated number of levels from the EVTYPE factor.
 
 ```{r echo=TRUE, cache=TRUE}
 stormData<-filter(stormData, TotalDamage == 0 | (FATALITIES == 0 & INJURIES == 0))
 stormData$EVTYPE<-factor(stormData$EVTYPE)
 ```
 
-2. Whitespace is stripped from all of the event labels, and all labels are converted to uppercase.
+####2.
+Whitespace is stripped from all of the event labels, and all labels are converted to uppercase.
 ```{r echo=TRUE, cache=TRUE}
 ev<-factor(toupper(trimws(stormData$EVTYPE)))
 stormData$EVTYPE = ev
+
 ```
 
-3. Next we take the top 50 most frequent event types by occurance.  The goal is to capture a significant portion of event types so that infrequent events may be excluded without skewing the results too much.
+####3.
+Next we take the top 100 most frequent event types by occurance.  The goal is to capture a significant portion of event types so that infrequent events may be excluded without skewing the results too much.
 
 ```{r echo=TRUE, cache=TRUE}
 
-freqs <- arrange(data.frame(table(stormData$EVTYPE)), desc(Freq))[1:50, ]
-top50Prop<- sum(freqs["Freq"]) / nrow(stormData)
+freqs <- arrange(data.frame(table(stormData$EVTYPE)), desc(Freq))[1:100, ]
+topProps<- sum(freqs["Freq"]) / nrow(stormData)
 
 ```
 
-These account for `r (top50props * 100)`% of the total observations, which should not effect the final results too much if the others are omitted.  However, it is possible that a single event (not included here) could account for a large amount of damage or injuries, so I think a bit more analysis is required.
+These account for `r (topProps * 100)`% of the total observations, which should not effect the final results too much if the others are omitted.  However, it is possible that a single event (not included here) could account for a large amount of damage or injuries, so I think a bit more analysis is required.
   
-Our next step will be to look at the events that fall outside of the top 50, and compare their fatalities, injuries, and damage with those items in the top 50.
+Our next step will be to look at the events that fall outside of the top 100, and compare their fatalities, injuries, and damage with those items in the top 100.
 
 ```{r echo=TRUE, cache=TRUE}
 
@@ -152,10 +175,12 @@ dProp = (tDmg / sum(stormData$TotalDamage)) *100
 
 ```
 
-There are `r nrow(match)` observations with a total of `r tFatal` fatalities, `r tInjur` injuries and `r tDmg` in damages.  Compared to the entire data set, these observations account for `r fProp`%, `r iProp'% and `r dProp` respectively.  Therefore I conclude that it is safe to exclude these factors when completing our cleanup of the EVTYPE factor.
+There are `r nrow(match)` observations with a total of `r tFatal` fatalities, `r tInjur` injuries and `r tDmg` in damages.  Compared to the entire data set, these observations account for `r fProp`%, `r iProp`% and `r dProp`% respectively.  
 
 
-4. As a final measure, we will observe the top 50 labels of the EVTYPE factor and use this information to make further corrections.  This part of the process is based on reading the labels, and using grep / insight to make informed decisions about manual corrections.
+
+####4.
+As a final measure, we will observe the top 50 labels of the EVTYPE factor and use this information to make further corrections.  This part of the process is based on reading the labels, and using grep / insight to make informed decisions about manual corrections.
   
 For example, looking at the first few rows, we can see an entry for **TSTM WIND** and **THUNDERSTORM WIND**.  These are likely the same type of event, just entered differently, so we will combine them.
 
@@ -170,7 +195,22 @@ By using the approach of observation and comparison, I have been able to create 
 # temp copy...
 newEv<-stormData$EVTYPE
 
-newEv[newEv == 'TSTM WIND'] = 'THUNDERSTORM WIND'
+newEv[newEv %in% c('TSTM WIND', 'THUNDERSTORM WINDS', 'THUNDERSTORM WINDSS')] = 'THUNDERSTORM WIND'
+newEv[newEv %in% c('MARINE TSTM WIND')] = 'MARINE THUNDERSTORM WIND'
+newEv[newEv %in% c('WINTER WEATHER/MIX')] = 'WINTER WEATHER'
+newEv[newEv %in% c('TSTM WIND/HAIL', 'SMALL HAIL')] = 'HAIL'
+newEv[newEv %in% c('EXTREME COLD/WIND CHILL')] = 'EXTREME COLD'
+newEv[newEv %in% c('FLASH FLOOD', 'FLOOD')] = 'FLOOD/FLASH FLOOD'
+newEv[newEv %in% c('HEAVY SURF/HIGH SURF', 'HEAVY SURF')] = 'HIGH SURF'
+newEv[newEv %in% c('RIP CURRENTS')] = 'RIP CURRENT'
+
+
+# More general fixes...
+newEv[grep('HURRICANE', newEv)] <- 'HURRICANE'
+newEv[grep('HEAT', newEv)] <- 'HEAT'
+
+# Finally we reassign the factor to our storm data.
+stormData$EVTYPE <- factor(newEv)
 
 ```
 
@@ -180,66 +220,6 @@ newEv[newEv == 'TSTM WIND'] = 'THUNDERSTORM WIND'
 
 ```
 
-##**Part 1:** Determining Events that are most harmful to human health.
-The first step that we will take is to locate the observations in the storm data that include at least one injury, or at least one fatality.  After filtering, we will subselect the injury, fatality and event type data
-since this is what we are most interested in for this particular part of the analysis.
-
-```{r echo=TRUE, cache=TRUE}
-
-withHarm<-filter(stormData, FATALITIES > 0 | INJURIES > 0)
-#withHarm<-select(withHarm, FATALITIES, INJURIES, EVTYPE)
-head(withHarm, MAX_ITEMS)
-
-```
-
-To determine the event types that are most harmful, we will first group and summarise them, and then sort them, first by number of fatalities (because being dead is worse than being injured), and then by number of injuries.
-
-```{r echo=TRUE, cache=TRUE}
-
-harmSorted<-group_by(withHarm, EVTYPE)
-
-harmSummary<-summarise(harmSorted, FATALITIES=sum(FATALITIES), INJURIES=sum(INJURIES)) %>%
-             arrange(desc(FATALITIES), desc(INJURIES))
-
-                     
-```
-
-If we take a quick look at the data (below) we can see that tornadoes far outweight the other top ten events in terms of both fatalities and injuries.  
-
-```{r echo=TRUE, cache=TRUE}
-
-head(harmSummary, MAX_ITEMS)
-
-```
-
-Before we plot the information to communicate our results, we transform the data into a log scale to better fit it in a plot.  Since we are dealing with non-zero numbers in the top `r MAX_ITEMS` events, we don't need to worry about taking the log of zero.
-
-```{r echo=TRUE, cache=TRUE}
-
-# harmSummary<-mutate(harmSummary, LogFatalities=log(FATALITIES), LogInjuries=log(INJURIES) )
-
-# Print it again so we can see our new data.
-# head(harmSummary, MAX_ITEMS)
-
-```
-
-Because we have both fatality and injury information per event, we will create a transformed set of data that will be used to create a bar plot that can communicate this effectively.  We will split out each type of 'harm' and merge it back into a new data set that will be used strictly for plotting.
-  
-We will use the transformed data later when we are plotting and reporting our results.
-  
-```{r cache=TRUE, cache=TRUE}
-
-fPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=FATALITIES, EVTYPE) %>% 
-       mutate(HarmType = 'Fatality')
-iPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=INJURIES, EVTYPE) %>% 
-       mutate(HarmType = 'Injury')
-
-# Merge the rows + change the harm type to a factor + cleanup intermediates.
-harmPlot<-rbind(fPlot, iPlot)
-rm(list=c("fPlot","iPlot"))
-
-
-```
 
 ##**Part 2:** Economic Consequnces
 
@@ -269,21 +249,52 @@ print(p)
 
 
 #Results
-###(required)
-... The results of the analysis go here.  You can add any others that you wish...
 
-```{r echo=TRUE, cache=TRUE, fig.width=8, fig.height=4, fig.cap="The Top 5 most harmful weather events, by type."}
+
+##Weather Events that are most harmful to human health.
+
+The first step that we will take is to locate the observations in the storm data that include at least one injury, or at least one fatality.  After filtering, we will subselect the injury, fatality and event type data
+since this is what we are most interested in for this particular part of the analysis.
+  
+To determine the event types that are most harmful, we will first group and summarise them, and then sort them, first by number of fatalities (because being dead is worse than being injured), and then by number of injuries.
+
+```{r echo=TRUE, cache=TRUE}
+
+withHarm<-filter(stormData, FATALITIES > 0 | INJURIES > 0)
+harmSorted<-group_by(withHarm, EVTYPE)
+
+harmSummary<-summarise(harmSorted, FATALITIES=sum(FATALITIES), INJURIES=sum(INJURIES)) %>%
+             arrange(desc(FATALITIES), desc(INJURIES))
+
+```
+
+Because we have both fatality and injury information per event, we will create a transformed set of data that will be used to create a bar plot that can communicate this effectively.  We will split out each type of *harm* and merge it back into a new data set that will be used strictly for plotting.
+
+```{r echo=TRUE, cache=TRUE}
+fPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=FATALITIES, EVTYPE) %>% 
+       mutate(HarmType = 'Fatality')
+iPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=INJURIES, EVTYPE) %>% 
+       mutate(HarmType = 'Injury')
+
+# Merge the rows + change the harm type to a factor + cleanup intermediates.
+harmPlot<-rbind(fPlot, iPlot)
+rm(list=c("fPlot","iPlot"))
 
 
 # Transform the data a bit so that we can plot in the correct order, etc.
 harmPlot$HarmType<-as.factor(harmPlot$HarmType)
 harmPlot$EVTYPE = factor(harmPlot$EVTYPE, unique(harmPlot$EVTYPE))  # Reorder Levels
+```
 
+The information will be plotted on a logarithmic scale to better convey the results.
+```{r echo=TRUE, cache=TRUE, fig.width=10, fig.height=4}
 
 p<- ggplot(harmPlot, aes(EVTYPE, Count, fill=HarmType)) +
     geom_bar(stat="identity", position="dodge") +
     scale_y_log10() +
-    xlab("Event Type")
+    xlab("Event Type") +
+    ggtitle("Most Harmful Weather Events by Type") +
+    theme(legend.position="none",axis.text.x = element_text(angle=90, vjust=0, hjust=1, size=10))
 
 print(p)
 
