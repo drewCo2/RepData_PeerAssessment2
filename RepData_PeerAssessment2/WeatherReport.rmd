@@ -3,17 +3,21 @@
 ```{r echo=FALSE, cache=TRUE}
 # The max number of items / observations that we want to report in each plot, table, etc.
 MAX_ITEMS<-10
-options(digits=3, scipen=1000)
+options(digits=2, scipen=0)
 ```
 
 #Dangerous Weather Events, 1950-2011
 
+<hr />
 ##Synopsis
+<hr />
 The purpose of this report is to analyze the types of weather events that are the most injurious to human health, as well as those that cause the most economic damage.  To investigate these weather events, we used the NOAA storm database which keeps track of weather events between the years 1950 and 2011.  By processing and analyzing the information, we are able to discover which types of weather events that cause the most fatalities and injuries, as well as the type of weather events that cause the most economic damage.
 
-
+<br /><br />
+<hr />
 ##Data Processing
-This is where we download the data files, load them into memory, and load any libraries that we may need to 
+<hr />
+First we download the data files, load them into memory, and load any libraries that we may need to 
 perform our analysis.  We will also process the data at this time to get it into a suitable format for further analysis and reporting.  In particular, we will remove all columns that don't contain data we aren't interested in for this report.
 
 ###Loading the data
@@ -81,7 +85,7 @@ validProp = sum(!stormData$PROPDMGEXP %in% valid) / nrow(stormData)
 validCrop = sum(!stormData$CROPDMGEXP %in% valid) / nrow(stormData)
 ```
 
-The proportion of invalid DMGEXP entries for property and crop damage are **`r validProp`** and **`r validCrop`** respectively.  These numbers are vanishingly small, so we will remove them from the factors by re-encoding them as NA (which will be interpreted as zero later)
+The proportion of invalid DMGEXP entries for property and crop damage are **`r format(validProp, digits=3, scientific=FALSE)`** and **`r format(validCrop, digits=3, scientific=FALSE)`** respectively.  These numbers are vanishingly small, so we will remove them from the factors by re-encoding them as NA (which will be interpreted as zero later)
 
 ```{r echo=TRUE, cache=TRUE}
 
@@ -150,7 +154,7 @@ topProps<- sum(freqs["Freq"]) / nrow(stormData)
 
 ```
 
-These account for `r (topProps * 100)`% of the total observations, which should not effect the final results too much if the others are omitted.  However, it is possible that a single event (not included here) could account for a large amount of damage or injuries, so I think a bit more analysis is required.
+These account for **`r format(topProps * 100, 2, scientific=FALSE)`%** of the total observations, which should not effect the final results too much if the others are omitted.  However, it is possible that a single event (not included here) could account for a large amount of damage or injuries, so I think a bit more analysis is required.
   
 Our next step will be to look at the events that fall outside of the top 100, and compare their fatalities, injuries, and damage with those items in the top 100.
 
@@ -165,13 +169,13 @@ tFatal<-sum(match$FATALITIES)
 tInjur<-sum(match$INJURIES)
 tDmg<-sum(match$TotalDamage)
 
-fProp = (tFatal / sum(stormData$FATALITIES)) * 100
-iProp = (tInjur / sum(stormData$INJURIES)) * 100
-dProp = (tDmg / sum(stormData$TotalDamage)) *100
+fProp = format((tFatal / sum(stormData$FATALITIES)) * 100, 3, scientific=FALSE)
+iProp = format((tInjur / sum(stormData$INJURIES)) * 100, 3, scientific=FALSE)
+dProp = format((tDmg / sum(stormData$TotalDamage)) *100, 3, scientific=FALSE)
 
 ```
 
-There are `r nrow(match)` observations with a total of `r tFatal` fatalities, `r tInjur` injuries and `r tDmg` in damages.  Compared to the entire data set, these observations account for `r fProp`%, `r iProp`% and `r dProp`% respectively.  
+There are `r nrow(match)` observations with a total of **`r tFatal`** fatalities, **`r tInjur`** injuries and **$`r  format(tDmg, scientific=FALSE)`** in damages.  Compared to the entire data set, these observations account for **`r fProp`%**, **`r iProp`%** and **`r dProp`%** respectively, which is not a significant porportion.
 
 
 
@@ -210,8 +214,10 @@ stormData$EVTYPE <- factor(newEv)
 
 ```
 
+<br /><br />
+<hr />
 #Results
-
+<hr />
 
 ##Weather Events that are most harmful to human health.
 
@@ -250,22 +256,21 @@ harmPlot$EVTYPE = factor(harmPlot$EVTYPE, unique(harmPlot$EVTYPE))  # Reorder Le
 p<- ggplot(harmPlot, aes(EVTYPE, Count, fill=HarmType)) +
     geom_bar(stat="identity", position="dodge") +
     xlab("") +
-    ggtitle("Most Harmful Weather Events by Type") +
+    ggtitle("Most Harmful Weather Events by Type (1950-2011)") +
     theme(legend.title=element_blank(), axis.text.x = element_text(angle=90, vjust=0, hjust=1, size=10))
 
 print(p)
 
 ```
-**Figure 1: Harmful weather events**
+**Figure 1: Harmful weather events** Fatalities are favored over injuries when determining *harm*  
 
+<br />
+<br />
+<br />
 
 ##Weather Events that cause the most ecomonic damage.
 
-
-
-##**Part 2:** Economic Consequnces
-
-We must do some additional data processing in order to determine the events with the greatest economic consequences.  Once again, we will group all of the data by type of event, and compute summary information for the amount of damage caused by each.
+We must do some additional data processing in order to determine the events with the greatest economic consequences.  Once again, we will group all of the data by type of event, and compute summary information for the amount of damage caused by each.  We then display this information in a simple bar plot, making the most damaging events clear.
 
 ```{r echo=TRUE, cache=TRUE, fig.width=10, fig.height=5}
 byDamage<-summarise(group_by(stormData, EVTYPE), Property=sum(PropDamage), Crop=sum(CropDamage), Total=sum(TotalDamage))
@@ -279,7 +284,9 @@ byDamage$EVTYPE = factor(byDamage$EVTYPE, unique(byDamage$EVTYPE))  # Reorder Le
 p<- ggplot(byDamage, aes(EVTYPE, Total, fill=EVTYPE)) +
     geom_bar(stat="identity") +
     xlab("") +
-    ylab("Total Damages ($)") + 
+    ylab("Total Damages (Billions $)") +
+    scale_y_continuous(breaks=seq(from=0, to=150e9, by=50e9), labels=as.character(seq(from=0,to=150,by=50))) +
+    ggtitle("Most Destructive Weather Events by Type (1950-2011)") +
     theme(legend.position="none", axis.text.x = element_text(angle=90, vjust=0, hjust=1, size=10))
 
 print(p)
