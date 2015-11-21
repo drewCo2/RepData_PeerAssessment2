@@ -119,10 +119,6 @@ stormData<-mutate(stormData, TotalDamage = PropDamage + CropDamage)
 
 ```
 
-
-```{r echo=TRUE, cache=TRUE}
-```
-
 ###Cleaning up event type (EVTYPE) factor information
 The EVTYPE factor in the data also needs to be cleaned up.  This factor has `r length(levels(stormData$EVTYPE))` levels which seems high.  Looking at the factor we can see that there are typos, extra whitespace, and abbreviations that end up creating more levels than are needed.
   
@@ -198,55 +194,21 @@ newEv<-stormData$EVTYPE
 newEv[newEv %in% c('TSTM WIND', 'THUNDERSTORM WINDS', 'THUNDERSTORM WINDSS')] = 'THUNDERSTORM WIND'
 newEv[newEv %in% c('MARINE TSTM WIND')] = 'MARINE THUNDERSTORM WIND'
 newEv[newEv %in% c('WINTER WEATHER/MIX')] = 'WINTER WEATHER'
-newEv[newEv %in% c('TSTM WIND/HAIL', 'SMALL HAIL')] = 'HAIL'
-newEv[newEv %in% c('EXTREME COLD/WIND CHILL')] = 'EXTREME COLD'
-newEv[newEv %in% c('FLASH FLOOD', 'FLOOD')] = 'FLOOD/FLASH FLOOD'
 newEv[newEv %in% c('HEAVY SURF/HIGH SURF', 'HEAVY SURF')] = 'HIGH SURF'
 newEv[newEv %in% c('RIP CURRENTS')] = 'RIP CURRENT'
 
 
 # More general fixes...
 newEv[grep('HURRICANE', newEv)] <- 'HURRICANE'
-newEv[grep('HEAT', newEv)] <- 'HEAT'
+newEv[grep('HEAT', newEv)] <- 'EXTREME HEAT'
+newEv[grep('COLD', newEv)] <- 'EXTREME COLD'
+newEv[grep('FLOOD', newEv)] <- 'FLOOD'
+newEv[grep('HAIL', newEv)] <- 'HAIL'
 
-# Finally we reassign the factor to our storm data.
+# Finally we reassign the corrected factor to our storm data.
 stormData$EVTYPE <- factor(newEv)
 
 ```
-
-```{r echo=TRUE, cache=TRUE}
-
-
-
-```
-
-
-##**Part 2:** Economic Consequnces
-
-We must do some additional data processing in order to determine the events with the greatest economic consequences.  Once again, we will group all of the data by type of event, and compute summary information for the amount of damage caused by each.
-
-```{r echo=TRUE, cache=TRUE}
-byDamage<-summarise(group_by(stormData, EVTYPE), Property=sum(PropDamage), Crop=sum(CropDamage), Total=sum(TotalDamage))
-
-# Ordering
-byDamage<-arrange(byDamage, desc(Total))[1:MAX_ITEMS, ]
-
-# Factor ordering for plot appearance.
-byDamage$EVTYPE = factor(byDamage$EVTYPE, unique(byDamage$EVTYPE))  # Reorder Levels
-
-# TODO: Order the factors so they appear correctly in the plot....
-
-# Again, plot with an exponential scale...
-p<- ggplot(byDamage, aes(EVTYPE, Total, fill=EVTYPE)) +
-    geom_bar(stat="identity") +
-    scale_y_log10() +
-    xlab("Event Type") +
-    ylab("Total Damages ($)")
-
-print(p)
-
-```
-
 
 #Results
 
@@ -270,7 +232,7 @@ harmSummary<-summarise(harmSorted, FATALITIES=sum(FATALITIES), INJURIES=sum(INJU
 
 Because we have both fatality and injury information per event, we will create a transformed set of data that will be used to create a bar plot that can communicate this effectively.  We will split out each type of *harm* and merge it back into a new data set that will be used strictly for plotting.
 
-```{r echo=TRUE, cache=TRUE}
+```{r echo=TRUE, cache=TRUE, fig.width=10, fig.height=5}
 fPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=FATALITIES, EVTYPE) %>% 
        mutate(HarmType = 'Fatality')
 iPlot<-select(harmSummary[1:MAX_ITEMS, ], Count=INJURIES, EVTYPE) %>% 
@@ -284,25 +246,43 @@ rm(list=c("fPlot","iPlot"))
 # Transform the data a bit so that we can plot in the correct order, etc.
 harmPlot$HarmType<-as.factor(harmPlot$HarmType)
 harmPlot$EVTYPE = factor(harmPlot$EVTYPE, unique(harmPlot$EVTYPE))  # Reorder Levels
-```
-
-The information will be plotted on a logarithmic scale to better convey the results.
-```{r echo=TRUE, cache=TRUE, fig.width=10, fig.height=4}
 
 p<- ggplot(harmPlot, aes(EVTYPE, Count, fill=HarmType)) +
     geom_bar(stat="identity", position="dodge") +
-    scale_y_log10() +
-    xlab("Event Type") +
+    xlab("") +
     ggtitle("Most Harmful Weather Events by Type") +
-    theme(legend.position="none",axis.text.x = element_text(angle=90, vjust=0, hjust=1, size=10))
+    theme(legend.title=element_blank(), axis.text.x = element_text(angle=90, vjust=0, hjust=1, size=10))
 
 print(p)
 
 ```
+**Figure 1: Harmful weather events**
 
-###Checklist
-1. At least 1 figure containing a plot.
-2. No more than 3 figures, though each fig. may contain more than one plot.
-3. Include code for everything.  All code chunks should be set w/ echo=TRUE
-4. Publish to RPubs.
 
+##Weather Events that cause the most ecomonic damage.
+
+
+
+##**Part 2:** Economic Consequnces
+
+We must do some additional data processing in order to determine the events with the greatest economic consequences.  Once again, we will group all of the data by type of event, and compute summary information for the amount of damage caused by each.
+
+```{r echo=TRUE, cache=TRUE, fig.width=10, fig.height=5}
+byDamage<-summarise(group_by(stormData, EVTYPE), Property=sum(PropDamage), Crop=sum(CropDamage), Total=sum(TotalDamage))
+
+# Ordering
+byDamage<-arrange(byDamage, desc(Total))[1:MAX_ITEMS, ]
+
+# Factor ordering for plot appearance.
+byDamage$EVTYPE = factor(byDamage$EVTYPE, unique(byDamage$EVTYPE))  # Reorder Levels
+
+p<- ggplot(byDamage, aes(EVTYPE, Total, fill=EVTYPE)) +
+    geom_bar(stat="identity") +
+    xlab("") +
+    ylab("Total Damages ($)") + 
+    theme(legend.position="none", axis.text.x = element_text(angle=90, vjust=0, hjust=1, size=10))
+
+print(p)
+
+```
+**Figure 2: Destructive Weather Events**
